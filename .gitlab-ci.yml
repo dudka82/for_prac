@@ -1,0 +1,64 @@
+stages:
+  - install
+  - lint
+  - test
+  - build
+
+variables:
+  APP_ENV: testing
+  NODE_ENV: production
+  COMPOSER_ALLOW_SUPERUSER: 1
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - vendor/
+    - node_modules/
+    - public/build/
+    - bootstrap/cache/
+
+# Установка зависимостей
+install:
+  stage: install
+  image: node:20
+  before_script:
+    - apt-get update && apt-get install -y unzip git php-cli php-mbstring curl php-dom php-mysql php-tokenizer php-xml php-curl
+  script:
+    - curl -sS https://getcomposer.org/installer | php
+    - php composer.phar install --no-interaction --prefer-dist
+    - npm ci
+
+# Линт PHP
+php_lint:
+  stage: lint
+  image: php:8.2
+  script:
+    - find app/ -name "*.php" -exec php -l {} \;
+
+# Линт JS
+js_lint:
+  stage: lint
+  image: node:20
+  script:
+    - npm run lint
+
+# Тесты Laravel
+phpunit:
+  stage: test
+  image: laravelsail/php82-composer
+  script:
+    - cp .env.example .env
+    - php artisan config:clear
+    - php artisan migrate --force
+    - php artisan test
+
+# Сборка React
+build_react:
+  stage: build
+  image: node:20
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - public/build/
+    expire_in: 1 week
